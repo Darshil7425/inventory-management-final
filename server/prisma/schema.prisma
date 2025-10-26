@@ -1,0 +1,89 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Products {
+  productId     String     @id @default(uuid())
+  name          String
+  price         Float
+  rating        Float?
+  stockQuantity Int
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  Sales         Sales[]
+  Purchases     Purchases[]
+}
+
+model Users {
+  userId String @id @default(uuid())
+  name   String
+  email  String
+}
+
+model Sales {
+  saleId      String   @id @default(uuid())
+  productId   String
+  timestamp   DateTime
+  quantity    Int
+  unitPrice   Float
+  totalAmount Float
+
+  product Products @relation(fields: [productId], references: [productId])
+}
+
+model Purchases {
+  purchaseId String   @id @default(uuid())
+  productId  String
+  timestamp  DateTime
+  quantity   Int
+  unitCost   Float
+  totalCost  Float
+
+  product Products @relation(fields: [productId], references: [productId])
+}
+
+model Expenses {
+  expenseId String   @id @default(uuid())
+  category  String
+  amount    Float
+  timestamp DateTime
+}
+
+model SalesSummary {
+  salesSummaryId   String   @id @default(uuid())
+  totalValue       Float
+  changePercentage Float?
+  date             DateTime
+}
+
+model PurchaseSummary {
+  purchaseSummaryId String   @id @default(uuid())
+  totalPurchased    Float
+  changePercentage  Float?
+  date              DateTime
+}
+
+model ExpenseSummary {
+  expenseSummaryId  String              @id @default(uuid())
+  totalExpenses     Float
+  date              DateTime
+  ExpenseByCategory ExpenseByCategory[]
+}
+
+model ExpenseByCategory {
+  expenseByCategoryId String         @id @default(uuid())
+  expenseSummaryId    String
+  category            String
+  amount              BigInt
+  date                DateTime
+
+  expenseSummary ExpenseSummary @relation(fields: [expenseSummaryId], references: [expenseSummaryId])
+}
