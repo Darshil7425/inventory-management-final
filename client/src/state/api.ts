@@ -1,3 +1,4 @@
+// client/src/state/api.ts
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 /** ===== Types ===== */
@@ -5,14 +6,16 @@ export interface Product {
   productId: string;
   name: string;
   price: number;
-  rating?: number;
+  rating?: number | null;
   stockQuantity: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface NewProduct {
   name: string;
   price: number;
-  rating?: number;
+  rating?: number | null;
   stockQuantity: number;
 }
 
@@ -31,6 +34,7 @@ export interface PurchaseSummary {
 }
 
 export interface ExpenseSummary {
+  // Keeping the ID name as-is to match the API shape
   expenseSummarId: string;
   totalExpenses: number;
   date: string;
@@ -57,34 +61,16 @@ export interface User {
   email: string;
 }
 
-/** ===== Base URL (from env) =====
- * Prefer NEXT_PUBLIC_API_URL; fall back to NEXT_PUBLIC_API_BASE_URL if present.
- */
+/** ===== Base URL (from env) ===== */
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL;
-
-if (!API_BASE) {
-  // This will show up in the browser console in dev if the env var is missing.
-  // Make sure client/.env.local has: NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-  // and restart `npm run dev`.
-  // eslint-disable-next-line no-console
-  console.warn(
-    "[api] Missing NEXT_PUBLIC_API_URL (or NEXT_PUBLIC_API_BASE_URL). Requests will fail."
-  );
-}
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://127.0.0.1:8000";
 
 /** ===== API Slice ===== */
 export const api = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE,
-    // If you need credentials/cookies with requests in future:
-    // credentials: "include",
-    // prepareHeaders: (headers) => {
-    //   headers.set("Content-Type", "application/json");
-    //   return headers;
-    // },
-  }),
+  baseQuery: fetchBaseQuery({ baseUrl: API_BASE }),
   tagTypes: ["DashboardMetrics", "Products", "Users", "Expenses"],
   endpoints: (build) => ({
     /** Dashboard */
@@ -99,15 +85,55 @@ export const api = createApi({
         url: "/products",
         params: search ? { search } : undefined,
       }),
-      providesTags: ["Products"],
+      providesTags: (result) =>
+        result && Array.isArray(result)
+          ? [
+              ...result.map((p) => ({
+                type: "Products" as const,
+                id: p.productId,
+              })),
+              { type: "Products" as const, id: "LIST" },
+            ]
+          : [{ type: "Products" as const, id: "LIST" }],
+      keepUnusedDataFor: 60, // ✅ valid
     }),
+
+    /** Create Product */
     createProduct: build.mutation<Product, NewProduct>({
       query: (newProduct) => ({
         url: "/products",
         method: "POST",
         body: newProduct,
       }),
-      invalidatesTags: ["Products"],
+      invalidatesTags: [{ type: "Products", id: "LIST" }],
+    }),
+
+    /** Update Product */
+    updateProduct: build.mutation<
+      Product,
+      { id: string; body: Partial<NewProduct> }
+    >({
+      query: ({ id, body }) => ({
+        url: `/products/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Products", id },
+        { type: "Products", id: "LIST" },
+      ],
+    }),
+
+    /** Delete Product */
+    deleteProduct: build.mutation<{ message: string }, string>({
+      query: (id) => ({
+        url: `/products/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (r, e, id) => [
+        { type: "Products", id },
+        { type: "Products", id: "LIST" },
+      ],
     }),
 
     /** Users */
@@ -129,6 +155,8 @@ export const {
   useGetDashboardMetricsQuery,
   useGetProductsQuery,
   useCreateProductMutation,
+  useUpdateProductMutation,
+  useDeleteProductMutation,
   useGetUsersQuery,
   useGetExpensesByCategoryQuery,
 } = api;
