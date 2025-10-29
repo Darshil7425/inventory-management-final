@@ -1,4 +1,3 @@
-// server/src/index.ts
 import express, { NextFunction, Request, Response } from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -24,10 +23,7 @@ app.use(morgan("common"));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-/* CORS
-   - You can override allowed origins via FRONTEND_ORIGIN (comma-separated)
-   - Defaults to Next.js dev at http://localhost:3000
-*/
+/* CORS */
 const allowedOrigins = (process.env.FRONTEND_ORIGIN ?? "http://localhost:3000")
   .split(",")
   .map((o) => o.trim());
@@ -40,10 +36,15 @@ app.use(
 );
 
 /* ROUTES */
-app.use("/dashboard", dashboardRoutes); // http://localhost:8000/dashboard
-app.use("/products", productRoutes);    // http://localhost:8000/products
-app.use("/users", userRoutes);          // http://localhost:8000/users
-app.use("/expenses", expenseRoutes);    // http://localhost:8000/expenses
+app.use("/dashboard", dashboardRoutes);
+app.use("/products", productRoutes);
+app.use("/users", userRoutes);
+app.use("/expenses", expenseRoutes);
+
+/* ROOT HEALTH CHECK */
+app.get("/", (_req: Request, res: Response) => {
+  res.send("API is up");
+});
 
 /* 404 HANDLER */
 app.use((_req: Request, res: Response) => {
@@ -57,7 +58,10 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 /* SERVER */
-const port = Number(process.env.PORT) || 8000; // default to 8000
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Server running on http://localhost:${port}`);
+const port = Number(process.env.PORT) || 8000;
+const host = process.env.HOST || "0.0.0.0";
+
+app.listen(port, host, () => {
+  console.log(`Local:  http://127.0.0.1:${port}`);
+  console.log(`Remote: http://<EC2_PUBLIC_IP>:${port}`);
 });
