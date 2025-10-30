@@ -1,10 +1,16 @@
-import express, { NextFunction, Request, Response } from "express";
+// server/src/index.ts
+import express, {
+  NextFunction,
+  Request,
+  Response,
+  ErrorRequestHandler,
+} from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
-/* ROUTE IMPORTS */
+/* ROUTES */
 import dashboardRoutes from "./routes/dashboardRoutes";
 import productRoutes from "./routes/productRoutes";
 import userRoutes from "./routes/userRoutes";
@@ -26,14 +32,21 @@ app.use(express.urlencoded({ extended: true }));
 /* CORS */
 const allowedOrigins = (process.env.FRONTEND_ORIGIN ?? "http://localhost:3000")
   .split(",")
-  .map((o) => o.trim());
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true); // allow tools like Postman
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+};
+
+// Handle preflight for all routes
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
 
 /* ROUTES */
 app.use("/dashboard", dashboardRoutes);
@@ -41,7 +54,7 @@ app.use("/products", productRoutes);
 app.use("/users", userRoutes);
 app.use("/expenses", expenseRoutes);
 
-/* ROOT HEALTH CHECK */
+/* HEALTH CHECK */
 app.get("/", (_req: Request, res: Response) => {
   res.send("API is up");
 });
@@ -52,16 +65,18 @@ app.use((_req: Request, res: Response) => {
 });
 
 /* ERROR HANDLER */
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  console.error("Server Error:", err);
   res.status(500).json({ message: "Server error" });
-});
+};
+app.use(errorHandler);
 
 /* SERVER */
 const port = Number(process.env.PORT) || 8000;
 const host = process.env.HOST || "0.0.0.0";
 
 app.listen(port, host, () => {
-  console.log(`Local:  http://127.0.0.1:${port}`);
-  console.log(`Remote: http://<EC2_PUBLIC_IP>:${port}`);
+  console.log(`✅ Server running`);
+  console.log(`   Local:  http://127.0.0.1:${port}`);
+  console.log(`   Remote: http://<EC2_PUBLIC_IP>:${port}`);
 });
